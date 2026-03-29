@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Mood Music Player</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Smooth, slow transition for the background color */
+        body {
+            transition: background-color 2s ease-in-out;
+            background-color: #111827; /* Default dark */
+            color: #f3f4f6;
+            overflow: hidden; /* Prevent scrolling, act like an app */
+        }
+
+        /* Glassmorphism for the floating bar */
+        .glass-panel {
+            background: rgba(17, 24, 39, 0.6);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Subtle radial gradient overlay to give the flat colors depth */
+        .bg-overlay {
+            background: radial-gradient(circle at center, rgba(255,255,255,0.05) 0%, rgba(0,0,0,0.6) 100%);
+            pointer-events: none;
+        }
+
+        /* Custom volume and seek sliders */
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 12px;
+            width: 12px;
+            border-radius: 50%;
+            background: #fff;
+            cursor: pointer;
+            margin-top: -4px;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: rgba(255,255,255,0.2);
+            border-radius: 2px;
+        }
+
+        /* Hidden slider thumb for seek bar to make it flat until hovered */
+        #seek-slider::-webkit-slider-thumb {
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .group:hover #seek-slider::-webkit-slider-thumb {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="min-h-screen relative font-sans antialiased flex flex-col items-center justify-end pb-8 md:pb-12" id="app-body">
+
+    <!-- Depth Overlay -->
+    <div class="fixed inset-0 bg-overlay z-0"></div>
+
+    <!-- Initialization Overlay -->
+    <div id="start-overlay" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gray-950 bg-opacity-95 backdrop-blur-sm">
+        <h1 class="text-4xl font-bold mb-8 text-white tracking-tight">AI Ambient DJ</h1>
+        <button onclick="initPlayer()" class="px-8 py-4 bg-white text-black hover:bg-gray-200 hover:scale-105 rounded-full text-lg font-bold transition-all shadow-[0_0_20px_rgba(255,255,255,0.3)]">
+            Enable Audio & Connect
+        </button>
+        <p class="mt-6 text-gray-400 text-sm">Waiting for permission to play audio...</p>
+    </div>
+
+    <!-- Center Screen Info (Current Mood Display) -->
+    <div class="absolute inset-0 flex flex-col items-center justify-center z-10 pointer-events-none text-center px-4">
+        <p class="text-white/50 uppercase tracking-[0.3em] text-sm font-semibold mb-2" id="ui-mood-label">Current Vibe</p>
+        <h1 class="text-5xl md:text-7xl font-bold text-white/90 tracking-tighter drop-shadow-2xl capitalize" id="ui-mood-display">
+            Initializing...
+        </h1>
+    </div>
+
+    <!-- Floating Playback Bar -->
+    <div class="glass-panel w-11/12 max-w-5xl rounded-3xl shadow-2xl z-20 flex flex-col overflow-hidden relative">
+        
+        <!-- Playback Seek Strip (Replaced AI Progress here) -->
+        <div class="w-full bg-black/40 h-1.5 relative group cursor-pointer hover:h-2 transition-all duration-200">
+            <input type="range" id="seek-slider" min="0" max="100" value="0" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" oninput="seekTrack(this.value)">
+            <div id="seek-progress" class="bg-white/80 h-full transition-all duration-100 ease-linear w-0 absolute left-0 top-0 shadow-[0_0_8px_rgba(255,255,255,0.5)]"></div>
+        </div>
+
+        <div class="px-6 py-4 flex flex-col md:flex-row items-center gap-4 md:gap-6 w-full">
+            
+            <!-- Left: Track Info -->
+            <div class="flex items-center gap-4 w-full md:w-1/3 min-w-0">
+                <div class="w-14 h-14 rounded-xl bg-gradient-to-br from-gray-700 to-gray-900 flex-shrink-0 shadow-inner flex items-center justify-center border border-white/10">
+                    <svg class="w-6 h-6 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"></path></svg>
+                </div>
+                <div class="min-w-0 flex-1 text-left">
+                    <h2 id="ui-title" class="text-lg font-bold text-white truncate w-full">Waiting for AI...</h2>
+                    <p id="ui-artists" class="text-sm text-gray-400 truncate w-full">Make some noise!</p>
+                </div>
+            </div>
+
+            <!-- Center: Playback Controls -->
+            <div class="flex items-center justify-center gap-6 w-full md:w-1/3">
+                <button onclick="prevTrack()" class="p-2 text-gray-400 hover:text-white transition">
+                    <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+                </button>
+                
+                <button id="play-pause-btn" onclick="togglePlayPause()" class="p-3 bg-white text-black rounded-full hover:scale-105 transition shadow-lg">
+                    <svg id="icon-play" class="w-7 h-7 hidden" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    <svg id="icon-pause" class="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                </button>
+                
+                <button onclick="skipTrack()" class="p-2 text-gray-400 hover:text-white transition">
+                    <svg class="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+                </button>
+            </div>
+
+            <!-- Right: Volume & Track Time -->
+            <div class="flex flex-col items-end w-full md:w-1/3 gap-2">
+                <!-- Track Time Text (Replaced AI text here) -->
+                <div class="text-xs font-mono font-medium text-right w-full text-white/70 truncate flex justify-end gap-1.5">
+                    <span id="track-current-time">0:00</span>
+                    <span class="text-white/30">/</span>
+                    <span id="track-duration">0:00</span>
+                </div>
+                
+                <!-- Volume Slider -->
+                <div class="flex items-center w-full max-w-[200px] gap-3">
+                    <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+                    <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.5" class="w-full appearance-none bg-transparent" oninput="changeVolume(this.value)">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Progress Bar (Moved Below Playback Block) -->
+    <div class="w-11/12 max-w-5xl mt-4 z-20 flex flex-col gap-2">
+        <div class="flex justify-between items-end text-[10px] md:text-xs font-bold uppercase tracking-widest text-white/50 px-2">
+            <span id="ai-status-text">AI Listener: Stable</span>
+            <span id="ai-progress-text" class="text-white/90"></span>
+        </div>
+        <div class="w-full bg-black/40 h-1.5 md:h-2 rounded-full overflow-hidden relative shadow-inner border border-white/10">
+            <div id="ai-progress-bar" class="bg-indigo-400 h-full transition-all duration-300 ease-out w-0 absolute left-0 top-0 shadow-[0_0_12px_rgba(129,140,248,0.8)]"></div>
+        </div>
+    </div>
+
+    <script>
+        // Color mapping for the fullscreen background
+        const moodColors = {
+            upbeat: '#ea580c',      
+            rock: '#7f1d1d',        
+            metal: '#000000',       
+            dark: '#1e1b4b',        
+            focus: '#0369a1',       
+            chill_pop: '#be185d',   
+            synthwave: '#7e22ce',   
+            classical: '#78350f',   
+            country: '#14532d',     
+            jazz: '#1e3a8a',        
+            chill_jazz: '#334155',  
+            chill: '#0f766e',       
+            chill_lofi: '#4338ca',  
+            lofi: '#881337',        
+            default: '#111827'      
+        };
+
+        let audioA = new Audio();
+        let audioB = new Audio();
+        let activeAudio = audioA;
+        let inactiveAudio = audioB;
+        let currentStreamUrl = null;
+        let currentMood = null;
+        let masterVolume = 0.5;
+        let isPlaying = true;
+        let isSeeking = false;
+
+        const uiTitle = document.getElementById('ui-title');
+        const uiArtists = document.getElementById('ui-artists');
+        const uiMoodDisplay = document.getElementById('ui-mood-display');
+        const btnPlay = document.getElementById('icon-play');
+        const btnPause = document.getElementById('icon-pause');
+        
+        // AI DOM Elements
+        const progressBar = document.getElementById('ai-progress-bar');
+        const statusText = document.getElementById('ai-status-text');
+        const progressText = document.getElementById('ai-progress-text');
+        const appBody = document.getElementById('app-body');
+
+        // Seek Bar Elements
+        const seekSlider = document.getElementById('seek-slider');
+        const seekProgress = document.getElementById('seek-progress');
+        const trackCurrentTimeText = document.getElementById('track-current-time');
+        const trackDurationText = document.getElementById('track-duration');
+
+        // Manage seek interactions
+        seekSlider.addEventListener('mousedown', () => isSeeking = true);
+        seekSlider.addEventListener('mouseup', () => isSeeking = false);
+        seekSlider.addEventListener('touchstart', () => isSeeking = true);
+        seekSlider.addEventListener('touchend', () => isSeeking = false);
+
+        function formatTime(seconds) {
+            if (!seconds || isNaN(seconds)) return "0:00";
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+        }
+
+        function initPlayer() {
+            document.getElementById('start-overlay').style.opacity = '0';
+            setTimeout(() => { document.getElementById('start-overlay').style.display = 'none'; }, 500);
+            
+            audioA.play().catch(()=>{});
+            audioB.play().catch(()=>{});
+            setInterval(pollState, 800); 
+            
+            // Continuous loop to update seek bar smoothly
+            setInterval(updateSeekVisuals, 250);
+            pollState();
+        }
+
+        function updateSeekVisuals() {
+            if (activeAudio && activeAudio.duration && !isSeeking) {
+                const percent = (activeAudio.currentTime / activeAudio.duration) * 100;
+                seekSlider.value = percent;
+                seekProgress.style.width = percent + '%';
+                
+                trackCurrentTimeText.innerText = formatTime(activeAudio.currentTime);
+                trackDurationText.innerText = formatTime(activeAudio.duration);
+            }
+        }
+
+        function seekTrack(value) {
+            if (activeAudio && activeAudio.duration) {
+                const seekTime = (value / 100) * activeAudio.duration;
+                activeAudio.currentTime = seekTime;
+                seekProgress.style.width = value + '%';
+                trackCurrentTimeText.innerText = formatTime(seekTime);
+            }
+        }
+
+        async function pollState() {
+            try {
+                const res = await fetch('/api/state');
+                const data = await res.json();
+                
+                // Track change logic
+                if (data.url && data.url !== currentStreamUrl) {
+                    currentStreamUrl = data.url;
+                    uiTitle.innerText = data.title;
+                    uiArtists.innerText = data.artists;
+                    
+                    crossfadeToNewTrack(currentStreamUrl);
+                }
+
+                // Mood/Background color change logic
+                if (data.mood && data.mood !== currentMood) {
+                    currentMood = data.mood;
+                    uiMoodDisplay.innerText = currentMood.replace('_', ' ');
+                    
+                    // Change background color dynamically
+                    const newColor = moodColors[currentMood] || moodColors.default;
+                    appBody.style.backgroundColor = newColor;
+                }
+
+                // AI Progress Bar Logic
+                if (data.ai_proposed_mood) {
+                    let percent = Math.min(100, Math.round((data.ai_progress / data.ai_threshold) * 100));
+                    progressBar.style.width = percent + '%';
+                    
+                    progressBar.style.opacity = "1";
+                    statusText.innerText = `Shifting vibe to: ${data.ai_proposed_mood.replace('_', ' ')}`;
+                    progressText.innerText = `${percent}%`;
+                } else if (data.mood !== "Initializing...") {
+                    // Stable state
+                    progressBar.style.width = '100%';
+                    progressBar.style.opacity = "0.15"; 
+                    
+                    statusText.innerText = `AI Listener: Stable`;
+                    progressText.innerText = '';
+                }
+
+            } catch (err) { console.error(err); }
+        }
+
+        function crossfadeToNewTrack(url) {
+            inactiveAudio.src = url;
+            inactiveAudio.volume = 0;
+            if (isPlaying) inactiveAudio.play();
+            const fadeStep = 0.05;
+            let fadeInterval = setInterval(() => {
+                if (activeAudio.volume > fadeStep) activeAudio.volume -= fadeStep;
+                else { activeAudio.volume = 0; activeAudio.pause(); }
+                if (inactiveAudio.volume < masterVolume - fadeStep) inactiveAudio.volume += fadeStep;
+                else inactiveAudio.volume = masterVolume;
+                if (activeAudio.volume === 0 && inactiveAudio.volume === masterVolume) {
+                    clearInterval(fadeInterval);
+                    let temp = activeAudio; activeAudio = inactiveAudio; inactiveAudio = temp;
+                }
+            }, 150);
+        }
+
+        function togglePlayPause() {
+            if (isPlaying) { activeAudio.pause(); btnPause.classList.add('hidden'); btnPlay.classList.remove('hidden'); }
+            else { activeAudio.play(); btnPlay.classList.add('hidden'); btnPause.classList.remove('hidden'); }
+            isPlaying = !isPlaying;
+        }
+
+        function changeVolume(val) {
+            masterVolume = parseFloat(val);
+            activeAudio.volume = masterVolume;
+        }
+
+        async function skipTrack() { await fetch('/api/skip', { method: 'POST' }); }
+        async function prevTrack() { await fetch('/api/prev', { method: 'POST' }); }
+    </script>
+</body>
+</html>
