@@ -4,7 +4,6 @@
 [![AI Model: YAMNet](https://img.shields.io/badge/Audio%20Classifier-Google%20YAMNet-orange.svg)](https://tfhub.dev/google/yamnet/1)
 [![Backend: Flask](https://img.shields.io/badge/Backend-Flask%20%7C%20REST-green.svg)](https://flask.palletsprojects.com/)
 [![Music: YouTube Music](https://img.shields.io/badge/Music%20Engine-yt--dlp%20%7C%20YTMusicAPI-red.svg)](https://github.com/yt-dlp/yt-dlp)
-[![UI: Glassmorphism](https://img.shields.io/badge/UI-Tailwind%20%7C%20Glassmorphic-purple.svg)](#interface)
 
 > **Automated-Ambience** is an autonomous ambient DJ that listens to acoustic signals in your room and automatically steers background audio to complement your real-time environment. Whether you are typing quietly, sharing dinner with friends, or focusing on work, the system dynamically curates and transitions between mood-aligned soundscapes without manual intervention.
 
@@ -20,34 +19,10 @@
 
 ## ⚡ How It Works
 
-```mermaid
-flowchart TD
-    A[Room Microphone] -->|1-Second PCM Audio Stream| B[sounddevice / PyAudio Buffer]
-    B -->|16kHz Resampled Waveform| C[Google YAMNet Deep Learning Model]
-    C -->|Top Probability Scores / 521 Classes| D[Weighted Accumulator & Evidence Gatherer]
-    
-    subgraph ThresholdLogic["Threshold Engine"]
-        D -->|Variable Sound Weights: Birds=1.5, Speech=0.7| E{Threshold Reached?}
-        E -->|No / Evidence Accumulating| D
-        E -->|Yes: 1.5x Multiplier on New Genre Shift| F[Trigger Transition]
-    end
-
-    F -->|Query Curated Mood Playlist| G[YouTube Music API / yt-dlp Stream Extractor]
-    G -->|PCM Audio Buffers A & B| H[HTML5 Dual-Deck Crossfader]
-    H -->|Smooth 2s Equal-Power Crossfade| I[Room Speakers / Mobile Client]
-```
-
-### 1. Acoustic Classification (Google YAMNet)
-The system captures 1-second chunks of audio and classifies ambient noise against **521 acoustic event classes** (e.g., keyboard typing, laughter, clinking glasses, birdsong, silence).
-
-### 2. Weighted Hysteresis & Anti-Flicker Logic
-To prevent rapid switching ("genre thrashing"):
-* **Evidence Gathering**: Repeated environmental sounds accrue confidence points over time.
-* **Variable Weights**: Infrequent, distinctive acoustic triggers (e.g., laughter, birds) carry higher weight ($1.5\times$) than continuous background hums or general speech ($0.7\times$).
-* **Cross-Genre Breakthrough**: When a proposed mood differs from what is currently playing, a $1.5\times$ boost helps break through the current mood once a sustained environmental shift is detected.
-
-### 3. Dual-Deck Crossfading
-The frontend runs two decoupled audio decks (`audioA` and `audioB`). When a mood shift occurs, the new stream pre-buffers before executing a smooth 2-second equal-power crossfade, preventing abrupt cuts or audio popping.
+1. **Acoustic Classification (Google YAMNet)**: The system captures 1-second chunks of audio via `sounddevice` and classifies ambient noise across 521 acoustic event classes (keyboard typing, laughter, speech, silence).
+2. **Weighted Threshold System**: Repeated environmental sounds accumulate points over time. Distinctive sounds (e.g. laughter, bird chirps) carry higher weight (1.5x) than continuous background noise (0.7x).
+3. **Cross-Genre Breakthrough**: When a new mood is proposed, a 1.5x multiplier allows sustained environmental shifts to break through the currently playing mood cleanly.
+4. **Dual-Deck Crossfade**: Two decoupled audio decks (`audioA` and `audioB`) pre-buffer incoming streams before executing a smooth 2-second equal-power crossfade to prevent audio pops.
 
 ---
 
@@ -64,18 +39,5 @@ python main.py
 ```
 
 ### 3. Open the Interface
-Once YAMNet loads into memory:
 * **Host URL**: `http://127.0.0.1:5000`
-* **Network Remote**: `http://<your-local-ip>:5000` *(control or output audio from your phone)*
-
----
-
-## 📁 Repository Structure
-
-```
-├── main.py               # Flask REST server & audio acquisition loop
-├── mapping.json          # YAMNet class ID to genre taxonomy mappings
-├── genres.json           # Curated YouTube Music playlist seeds
-└── templates/
-    └── index.html        # Responsive glassmorphic UI, dual-deck crossfade logic
-```
+* **Network Remote**: `http://<your-local-ip>:5000` *(phone control/output)*
