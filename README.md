@@ -1,79 +1,81 @@
-# Automated-Ambience
+# 🎧 Automated-Ambience — AI-Powered Acoustic Mood DJ
 
-Automated-Ambience is an AI-powered DJ that listens to your environment and automatically shifts the music to match the "vibe" of your surroundings.
+[![Python 3.8+](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://www.python.org/)
+[![AI Model: YAMNet](https://img.shields.io/badge/Audio%20Classifier-Google%20YAMNet-orange.svg)](https://tfhub.dev/google/yamnet/1)
+[![Backend: Flask](https://img.shields.io/badge/Backend-Flask%20%7C%20REST-green.svg)](https://flask.palletsprojects.com/)
+[![Music: YouTube Music](https://img.shields.io/badge/Music%20Engine-yt--dlp%20%7C%20YTMusicAPI-red.svg)](https://github.com/yt-dlp/yt-dlp)
+[![UI: Glassmorphism](https://img.shields.io/badge/UI-Tailwind%20%7C%20Glassmorphic-purple.svg)](#interface)
 
-Whether you are working (Typing/Silence), having a rowdy dinner (Laughter/Dishes), or just relaxing, the AI processes ambient audio in real-time to ensure the soundscape always matches the moment without you ever having to touch a remote.
+> **Automated-Ambience** is an autonomous ambient DJ that listens to acoustic signals in your room and automatically steers background audio to complement your real-time environment. Whether you are typing quietly, sharing dinner with friends, or focusing on work, the system dynamically curates and transitions between mood-aligned soundscapes without manual intervention.
 
-# Quick Start
+---
 
-1. Prerequisites
+## 🖥️ Live Player Interface
 
-Ensure you have Python 3.8+ installed. You will also need to install the following dependencies:
+![Automated Ambience Player Interface](automated_ambience_homescreen.png)
 
+*The adaptive glassmorphic interface dynamically shifts its theme color, ambient waveform, and status indicators based on real-time classification confidence and genre identity.*
+
+---
+
+## ⚡ How It Works
+
+```mermaid
+flowchart TD
+    A[Room Microphone] -->|1-Second PCM Audio Stream| B[sounddevice / PyAudio Buffer]
+    B -->|16kHz Resampled Waveform| C[Google YAMNet Deep Learning Model]
+    C -->|Top Probability Scores / 521 Classes| D[Weighted Accumulator & Evidence Gatherer]
+    
+    subgraph ThresholdLogic["Threshold Engine"]
+        D -->|Variable Sound Weights: Birds=1.5, Speech=0.7| E{Threshold Reached?}
+        E -->|No / Evidence Accumulating| D
+        E -->|Yes: 1.5x Multiplier on New Genre Shift| F[Trigger Transition]
+    end
+
+    F -->|Query Curated Mood Playlist| G[YouTube Music API / yt-dlp Stream Extractor]
+    G -->|PCM Audio Buffers A & B| H[HTML5 Dual-Deck Crossfader]
+    H -->|Smooth 2s Equal-Power Crossfade| I[Room Speakers / Mobile Client]
+```
+
+### 1. Acoustic Classification (Google YAMNet)
+The system captures 1-second chunks of audio and classifies ambient noise against **521 acoustic event classes** (e.g., keyboard typing, laughter, clinking glasses, birdsong, silence).
+
+### 2. Weighted Hysteresis & Anti-Flicker Logic
+To prevent rapid switching ("genre thrashing"):
+* **Evidence Gathering**: Repeated environmental sounds accrue confidence points over time.
+* **Variable Weights**: Infrequent, distinctive acoustic triggers (e.g., laughter, birds) carry higher weight ($1.5\times$) than continuous background hums or general speech ($0.7\times$).
+* **Cross-Genre Breakthrough**: When a proposed mood differs from what is currently playing, a $1.5\times$ boost helps break through the current mood once a sustained environmental shift is detected.
+
+### 3. Dual-Deck Crossfading
+The frontend runs two decoupled audio decks (`audioA` and `audioB`). When a mood shift occurs, the new stream pre-buffers before executing a smooth 2-second equal-power crossfade, preventing abrupt cuts or audio popping.
+
+---
+
+## 🚀 Quick Start
+
+### 1. Install Dependencies
+```bash
 pip install flask numpy sounddevice tensorflow tensorflow-hub ytmusicapi yt-dlp
+```
 
-
-2. Run the Server
-
-From your terminal, run the main script:
-
+### 2. Run the Server
+```bash
 python main.py
+```
 
+### 3. Open the Interface
+Once YAMNet loads into memory:
+* **Host URL**: `http://127.0.0.1:5000`
+* **Network Remote**: `http://<your-local-ip>:5000` *(control or output audio from your phone)*
 
-3. Access the Interface
+---
 
-Once the AI finishes loading the YAMNet model (this may take a moment), you can access the player at:
+## 📁 Repository Structure
 
-Host URL: http://127.0.0.1:5000
-
-Network Client URL: http://<your-local-ip>:5000 (Useful for using a phone as a remote/output)
-
-#  How It Works
-
-The Listening Loop
-
-The project uses Google's YAMNet deep learning model. It captures 1-second chunks of audio and classifies them into one of 521 categories.
-
-Weighted Logic & Thresholds
-
-To prevent the music from "flickering" between genres, we use a Weighted Threshold System.
-
-Evidence Gathering: Every sound (e.g., Laughter) adds "points" toward a proposed mood.
-
-Variable Weights: Distinct sounds like "Bird chirps" are weighted higher ($1.5$) than common sounds like "Speech" ($0.7$).
-
-The Boost: If a sound is detected that belongs to a different genre than what is currently playing, its score is multiplied by 1.5x to help the AI break through the current mood faster.
-
-The Music Engine
-
-Once a threshold is hit:
-
-Selection: The backend picks a random track from a curated YouTube Music playlist.
-
-Streaming: yt-dlp extracts the direct audio stream.
-
-Cross-fade: The frontend performs a smooth 2-second cross-fade between the old and new tracks.
-
-#  File Structure
-
-main.py: The Python Flask backend and AI processing loop.
-
-mapping.json: Defines which YAMNet sounds (e.g., "Siren") trigger which genres (e.g., "Rock").
-
-genres.json: Stores the YouTube Music playlist IDs for each mood.
-
-templates/index.html: The glassmorphic UI, audio buffers, and cross-fade logic.
-
-#  Key Controls
-
-Automatic: The AI handles everything.
-
-Manual Overrides: The UI includes Skip, Previous, Volume, and a Seek Bar for manual control.
-
-Visual Feedback: The background color shifts dynamically to match the current genre's "color identity."
-
-#  Limitations & Notes
-
-Music Suppression: The AI is tuned to ignore its own music playback to prevent a feedback loop.
-
-Browser Permission: Browsers require a user gesture to play audio. Click the "Enable Audio" button on the landing page to start the stream.
+```
+├── main.py               # Flask REST server & audio acquisition loop
+├── mapping.json          # YAMNet class ID to genre taxonomy mappings
+├── genres.json           # Curated YouTube Music playlist seeds
+└── templates/
+    └── index.html        # Responsive glassmorphic UI, dual-deck crossfade logic
+```
